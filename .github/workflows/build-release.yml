@@ -1,0 +1,105 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        include:
+          - os: windows-latest
+            platform: windows
+            arch: x86_64
+          - os: ubuntu-latest
+            platform: linux
+            arch: x86_64
+          - os: macos-latest
+            platform: macos
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install pixi
+        uses: prefix-dev/setup-pixi@v0
+        with:
+          pixi-version: v0.65.0
+          cache: true
+
+      - name: Build
+        run: pixi run build
+
+      - name: Run demo (must pass to release)
+        run: pixi run --environment demo demo
+
+      - name: Prepare release
+        shell: bash
+        run: |
+          projectName="${{ github.event.repository.name }}"
+          version="${{ github.ref_name }}"
+          platform="${{ matrix.platform }}"
+          arch="${{ matrix.arch }}"
+          mkdir -p ./release
+          for dir in ./dist/*; do
+            base_dir="$(basename "$dir")"
+            if [[ -f "$dir" ]]; then
+              if [[ "$base_dir" == *.* ]]; then
+                mv "$dir" "./release/${projectName}-${base_dir%%.*}-${version}-${platform}-${arch}.${base_dir#*.}"
+              else
+                if [ "${platform}" = "windows" ]; then
+                  mv "$dir" "./release/${projectName}-${base_dir}-${version}-${platform}-${arch}"
+                else
+                  tar czf "./release/${projectName}-${base_dir}-${version}-${platform}-${arch}.tar.gz" -C "./dist" "$base_dir"
+                fi
+              fi
+            elif [[ -d "$dir" ]]; then
+              if [ "${platform}" = "windows" ]; then
+                (
+                    cd "${dir}"
+                    7z a -tzip "../../release/${projectName}-${base_dir}-${version}-${platform}-${arch}.zip" . -r
+                )
+              else
+                tar czf "./release/${projectName}-${base_dir}-${version}-${platform}-${arch}.tar.gz" -C "${dir}" .
+              fi
+            fi
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.platform }}-${{ matrix.arch }}
+          path: ./release/*
+          if-no-files-found: error
+
+  create-release:
+    needs: build-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: ./all-release
+
+      - name: Organize files
+        run: |
+          mkdir -p ./final-release
+          find ./all-release -type f -exec cp -p {} ./final-release/ \;
+
+      - name: Create release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: ./final-release/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

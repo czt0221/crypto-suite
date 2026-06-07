@@ -1,0 +1,31 @@
+[workspace]
+authors = ["czt0221 <2320231515@qq.com>"]
+channels = ["conda-forge"]
+name = "crypto-suite"
+platforms = ["win-64", "linux-64", "osx-arm64"]
+version = "0.1.0"
+
+[tasks]
+build = "make"
+clean = "make clean"
+crypto = "./dist/crypto"
+
+[dependencies]
+make = ">=4.4.1,<5"
+gcc = ">=15.2.0,<15.3"
+
+[target.win-64.dependencies]
+binutils = ">=2.45.1,<3"
+
+[target.linux-64.dependencies]
+binutils = ">=2.45.1,<3"
+
+[feature.demo.dependencies]
+openssl = ">=3.6.2,<4"
+
+[feature.demo.tasks]
+demo = "./build/demo"
+
+[environments]
+default = { features = ["default"] }
+demo = { features = ["default", "demo"], solve-group = "default" }
