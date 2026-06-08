@@ -153,20 +153,6 @@ int main(int argc, char **argv)
         const char *op = argv[2];
         if (strcmp(op, "enc") == 0)
         {
-            uint32_t cp[1024]; size_t cp_len = sizeof(cp)/sizeof(cp[0]);
-            size_t hex_len = strlen(argv[3]);
-            size_t byte_len = hex_len / 2;
-            uint8_t *tmp = (uint8_t*)malloc(byte_len);
-            size_t tmp_len;
-            if (hex_to_bytes(argv[3], hex_len, tmp, &tmp_len) != CRYPTO_OK ||
-                utf8_decode(tmp, tmp_len, cp, &cp_len) != CRYPTO_OK)
-                { free(tmp); fprintf(stderr, "Bad input\n"); return 1; }
-            free(tmp);
-            for (size_t i = 0; i < cp_len; i++) printf("U+%04X ", cp[i]);
-            printf("\n");
-        }
-        else if (strcmp(op, "dec") == 0)
-        {
             uint32_t cp[1024]; size_t cp_len = 0;
             char *p = argv[3]; while (*p) {
                 while (*p == ' ') p++;
@@ -179,6 +165,20 @@ int main(int argc, char **argv)
             if (utf8_encode(cp, cp_len, out, &out_len) != CRYPTO_OK)
                 { fprintf(stderr, "UTF-8 encode failed\n"); return 1; }
             print_hex(out, out_len); printf("\n");
+        }
+        else if (strcmp(op, "dec") == 0)
+        {
+            uint32_t cp[1024]; size_t cp_len = sizeof(cp)/sizeof(cp[0]);
+            size_t hex_len = strlen(argv[3]);
+            size_t byte_len = hex_len / 2;
+            uint8_t *tmp = (uint8_t*)malloc(byte_len);
+            size_t tmp_len;
+            if (hex_to_bytes(argv[3], hex_len, tmp, &tmp_len) != CRYPTO_OK ||
+                utf8_decode(tmp, tmp_len, cp, &cp_len) != CRYPTO_OK)
+                { free(tmp); fprintf(stderr, "Bad input\n"); return 1; }
+            free(tmp);
+            for (size_t i = 0; i < cp_len; i++) printf("U+%04X ", cp[i]);
+            printf("\n");
         }
         else { fprintf(stderr, "utf8: enc or dec\n"); return 1; }
     }
@@ -238,10 +238,10 @@ int main(int argc, char **argv)
                 { fprintf(stderr, "RSA gen failed\n"); return 1; }
             char pem[8192]; size_t pem_len = sizeof(pem);
             if (rsa_priv_to_pem(pri, pri_len, pem, &pem_len) == CRYPTO_OK)
-                printf("PRIVATE:\n%.*s\n", (int)pem_len, pem);
+                printf("PRI_PEM:\n%.*s", (int)pem_len, pem);
             pem_len = sizeof(pem);
             if (rsa_pub_to_pem(pub, pub_len, pem, &pem_len) == CRYPTO_OK)
-                printf("PUBLIC:\n%.*s\n", (int)pem_len, pem);
+                printf("PUB_PEM:\n%.*s", (int)pem_len, pem);
             printf("PRI_RAW: "); print_hex(pri, pri_len); printf("\n");
             printf("PUB_RAW: "); print_hex(pub, pub_len); printf("\n");
         }
@@ -281,20 +281,16 @@ int main(int argc, char **argv)
             uint8_t pub[40]; size_t pub_len = sizeof(pub);
             if (ecc_gen_keypair(pri, &pri_len, pub, &pub_len) != CRYPTO_OK)
                 { fprintf(stderr, "ECC gen failed\n"); return 1; }
-            printf("PRI: "); print_hex(pri, pri_len); printf("\n");
-            printf("PUB: "); print_hex(pub, pub_len); printf("\n");
-        }
-        else if (strcmp(argv[2], "pub-to-pem") == 0 && argc >= 4)
-        {
-            uint8_t pub[40]; size_t pub_len;
-            if (hex_to_bytes(argv[3], strlen(argv[3]), pub, &pub_len) != CRYPTO_OK)
-                { fprintf(stderr, "Bad hex\n"); return 1; }
             char pem[2048]; size_t pem_len = sizeof(pem);
-            if (ecc_pub_to_pem(pub, pub_len, pem, &pem_len) != CRYPTO_OK)
-                { fprintf(stderr, "PEM failed\n"); return 1; }
-            printf("%.*s", (int)pem_len, pem);
+            if (ecc_pri_to_pem(pri, pri_len, pub, pub_len, pem, &pem_len) == CRYPTO_OK)
+                printf("PRI_PEM:\n%.*s", (int)pem_len, pem);
+            pem_len = sizeof(pem);
+            if (ecc_pub_to_pem(pub, pub_len, pem, &pem_len) == CRYPTO_OK)
+                printf("PUB_PEM:\n%.*s", (int)pem_len, pem);
+            printf("PRI_RAW: "); print_hex(pri, pri_len); printf("\n");
+            printf("PUB_RAW: "); print_hex(pub, pub_len); printf("\n");
         }
-        else { fprintf(stderr, "ecc: gen or pub-to-pem\n"); return 1; }
+        else { fprintf(stderr, "ecc: gen\n"); return 1; }
     }
     else if (strcmp(cmd, "rsasha1") == 0 && argc >= 4)
     {
