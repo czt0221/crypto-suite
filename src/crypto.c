@@ -126,7 +126,7 @@ int main(int argc, char **argv)
             { fprintf(stderr, "PBKDF2 failed\n"); return 1; }
         print_hex(key, dklen); printf("\n");
     }
-    else if (strcmp(cmd, "base64") == 0 && argc >= 4)
+    else     if (strcmp(cmd, "base64") == 0 && argc >= 4)
     {
         const char *op = argv[2];
         if (strcmp(op, "enc") == 0)
@@ -134,14 +134,16 @@ int main(int argc, char **argv)
             uint8_t data[4096]; size_t data_len;
             if (hex_to_bytes(argv[3], strlen(argv[3]), data, &data_len) != CRYPTO_OK)
                 { fprintf(stderr, "Bad hex\n"); return 1; }
-            char out[8192]; size_t out_len;
-            base64_encode(data, data_len, out, &out_len);
+            char out[8192]; size_t out_len = sizeof(out);
+            if (base64_encode(data, data_len, out, &out_len) != CRYPTO_OK)
+                { fprintf(stderr, "Base64 encode failed\n"); return 1; }
             printf("%.*s\n", (int)out_len, out);
         }
         else if (strcmp(op, "dec") == 0)
         {
-            uint8_t data[8192]; size_t data_len;
-            base64_decode(argv[3], strlen(argv[3]), data, &data_len);
+            uint8_t data[8192]; size_t data_len = sizeof(data);
+            if (base64_decode(argv[3], strlen(argv[3]), data, &data_len) != CRYPTO_OK)
+                { fprintf(stderr, "Base64 decode failed\n"); return 1; }
             print_hex(data, data_len); printf("\n");
         }
         else { fprintf(stderr, "base64: enc or dec\n"); return 1; }
@@ -167,12 +169,15 @@ int main(int argc, char **argv)
         {
             uint32_t cp[1024]; size_t cp_len = 0;
             char *p = argv[3]; while (*p) {
+                while (*p == ' ') p++;
+                if (!*p) break;
                 if (p[0] == 'U' && p[1] == '+') {
                     cp[cp_len++] = (uint32_t)strtoul(p+2, &p, 16);
                 } else { fprintf(stderr, "Bad utf8 format\n"); return 1; }
             }
-            uint8_t out[4096]; size_t out_len;
-            utf8_encode(cp, cp_len, out, &out_len);
+            uint8_t out[4096]; size_t out_len = sizeof(out);
+            if (utf8_encode(cp, cp_len, out, &out_len) != CRYPTO_OK)
+                { fprintf(stderr, "UTF-8 encode failed\n"); return 1; }
             print_hex(out, out_len); printf("\n");
         }
         else { fprintf(stderr, "utf8: enc or dec\n"); return 1; }
@@ -231,11 +236,12 @@ int main(int argc, char **argv)
             uint8_t pub[RSA_PUB_RAW_SIZE]; size_t pub_len = sizeof(pub);
             if (rsa_gen_keypair(pri, &pri_len, pub, &pub_len) != CRYPTO_OK)
                 { fprintf(stderr, "RSA gen failed\n"); return 1; }
-            char pem[8192]; size_t pem_len;
-            rsa_priv_to_pem(pri, pri_len, pem, &pem_len);
-            printf("PRIVATE:\n%.*s\n", (int)pem_len, pem);
-            rsa_pub_to_pem(pub, pub_len, pem, &pem_len);
-            printf("PUBLIC:\n%.*s\n", (int)pem_len, pem);
+            char pem[8192]; size_t pem_len = sizeof(pem);
+            if (rsa_priv_to_pem(pri, pri_len, pem, &pem_len) == CRYPTO_OK)
+                printf("PRIVATE:\n%.*s\n", (int)pem_len, pem);
+            pem_len = sizeof(pem);
+            if (rsa_pub_to_pem(pub, pub_len, pem, &pem_len) == CRYPTO_OK)
+                printf("PUBLIC:\n%.*s\n", (int)pem_len, pem);
             printf("PRI_RAW: "); print_hex(pri, pri_len); printf("\n");
             printf("PUB_RAW: "); print_hex(pub, pub_len); printf("\n");
         }
@@ -286,7 +292,7 @@ int main(int argc, char **argv)
             char pem[2048]; size_t pem_len = sizeof(pem);
             if (ecc_pub_to_pem(pub, pub_len, pem, &pem_len) != CRYPTO_OK)
                 { fprintf(stderr, "PEM failed\n"); return 1; }
-            printf("%s", pem);
+            printf("%.*s", (int)pem_len, pem);
         }
         else { fprintf(stderr, "ecc: gen or pub-to-pem\n"); return 1; }
     }
@@ -300,7 +306,7 @@ int main(int argc, char **argv)
                 { fprintf(stderr, "Bad pri\n"); return 1; }
             if (hex_to_bytes(argv[4], strlen(argv[4]), msg, &msg_len) != CRYPTO_OK)
                 { fprintf(stderr, "Bad msg\n"); return 1; }
-            uint8_t sig[128]; size_t sig_len;
+            uint8_t sig[128]; size_t sig_len = sizeof(sig);
             if (rsa_sha1_sign(pri, pri_len, msg, msg_len, sig, &sig_len) != CRYPTO_OK)
                 { fprintf(stderr, "Sign failed\n"); return 1; }
             print_hex(sig, sig_len); printf("\n");
@@ -330,7 +336,7 @@ int main(int argc, char **argv)
                 { fprintf(stderr, "Bad pri\n"); return 1; }
             if (hex_to_bytes(argv[4], strlen(argv[4]), msg, &msg_len) != CRYPTO_OK)
                 { fprintf(stderr, "Bad msg\n"); return 1; }
-            uint8_t sig[40]; size_t sig_len;
+            uint8_t sig[40]; size_t sig_len = sizeof(sig);
             if (ecdsa_sign(pri, pri_len, msg, msg_len, sig, &sig_len) != CRYPTO_OK)
                 { fprintf(stderr, "Sign failed\n"); return 1; }
             print_hex(sig, sig_len); printf("\n");
